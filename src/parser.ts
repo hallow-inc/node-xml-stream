@@ -34,6 +34,11 @@ import { Writable } from 'stream';
  *
  */
 export default class Parser extends Writable {
+	private state: STATE;
+	private buffer: string;
+	private pos: number;
+	private tagType: TAG_TYPE;
+	private isCloseTag: boolean;
 
 	constructor() {
 		super();
@@ -41,9 +46,10 @@ export default class Parser extends Writable {
 		this.buffer = '';
 		this.pos = 0;
 		this.tagType = TAG_TYPE.NONE;
+		this.isCloseTag = false;
 	}
 
-	_write(chunk, encoding, done) {
+	_write(chunk: any, encoding: BufferEncoding, done: () => void) {
 		chunk = typeof chunk !== 'string' ? chunk.toString() : chunk;
 		for (let i = 0; i < chunk.length; i++) {
 			let c = chunk[i];
@@ -58,10 +64,10 @@ export default class Parser extends Writable {
 					break;
 
 				case (STATE.TAG_NAME):
-					if (prev === '<' && c === '?') { this._onStartInstruction() };
-					if (prev === '<' && c === '/') { this._onCloseTagStart() };
-					if (this.buffer[this.pos - 3] === '<' && prev === '!' && c === '[') { this._onCDATAStart() };
-					if (this.buffer[this.pos - 3] === '<' && prev === '!' && c === '-') { this._onCommentStart() };
+					if (prev === '<' && c === '?') { this._onStartInstruction() }
+					if (prev === '<' && c === '/') { this._onCloseTagStart() }
+					if (this.buffer[this.pos - 3] === '<' && prev === '!' && c === '[') { this._onCDATAStart() }
+					if (this.buffer[this.pos - 3] === '<' && prev === '!' && c === '-') { this._onCommentStart() }
 					if (c === '>') {
 						if (prev === "/") { this.tagType |= TAG_TYPE.CLOSING; }
 						this._onTagCompleted();
@@ -86,7 +92,7 @@ export default class Parser extends Writable {
 	}
 
 	_endRecording() {
-		let rec = this.buffer.slice(1, this.pos - 1).trim();
+		let rec = this.buffer.slice(1, this.pos - 1);
 		this.buffer = this.buffer.slice(-1); // Keep last item in buffer for prev comparison in main loop.
 		this.pos = 1;
 		rec = rec.charAt(rec.length - 1) === '/' ? rec.slice(0, -1) : rec;
@@ -95,7 +101,7 @@ export default class Parser extends Writable {
 	}
 
 	_onStartNewTag() {
-		let text = this._endRecording().trim();
+		let text = this._endRecording();
 		if (text) {
 			this.emit(EVENTS.TEXT, text);
 		}
@@ -164,10 +170,10 @@ export default class Parser extends Writable {
 	 * @param  {string} str the tag string.
 	 * @return {object}     {name, attributes}
 	 */
-	_parseTagString(str) {
+	_parseTagString(str: string) {
 		let [name, ...attrs] = str.split(/\s+(?=[\w:-]+=)/g);
-		let attributes = {};
-		attrs.forEach((attribute) => {
+		let attributes: { [key: string]: string } = {};
+		attrs.forEach((attribute: string) => {
 			let [name, value] = attribute.split("=");
 			attributes[name] = value.trim().replace(/"|'/g, "");
 		});
@@ -175,25 +181,25 @@ export default class Parser extends Writable {
 	}
 }
 
-const STATE = {
-	TEXT: 0,
-	TAG_NAME: 1,
-	INSTRUCTION: 2,
-	IGNORE_COMMENT: 4,
-	CDATA: 8
-};
-
-const TAG_TYPE = {
-	NONE: 0,
-	OPENING: 1,
-	CLOSING: 2,
-	SELF_CLOSING: 3
+enum STATE {
+	TEXT = 0,
+	TAG_NAME = 1,
+	INSTRUCTION = 2,
+	IGNORE_COMMENT = 4,
+	CDATA = 8
 }
 
-export const EVENTS = {
-	TEXT: 'text',
-	INSTRUCTION: 'instruction',
-	OPEN_TAG: 'opentag',
-	CLOSE_TAG: 'closetag',
-	CDATA: 'cdata'
-};
+enum TAG_TYPE {
+	NONE = 0,
+	OPENING = 1,
+	CLOSING = 2,
+	SELF_CLOSING = 3
+}
+
+export enum EVENTS {
+	TEXT = 'text',
+	INSTRUCTION = 'instruction',
+	OPEN_TAG = 'opentag',
+	CLOSE_TAG = 'closetag',
+	CDATA = 'cdata'
+}
